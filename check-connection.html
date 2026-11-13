@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prompt Vault — Supabase Connection Check</title>
+  <style>
+    body { font: 16px/1.55 system-ui, -apple-system, sans-serif; max-width: 680px; padding: 30px 20px; margin: 60px auto; color: #1e293b; background: #f8fafc; }
+    main { padding: 28px; background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; box-shadow: 0 12px 30px #0f172a0b; }
+    h1 { margin-top: 0; } #status { font-weight: 700; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; background: #f1f5f9; border-radius: 10px; }
+    a { color: #2563eb; } button { background: #2563eb; color: white; border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; font: inherit; }
+  </style>
+  <script src="config.js?v=20261113-2" defer></script>
+</head>
+<body>
+  <main>
+    <h1>Supabase connection check</h1>
+    <p>This tests whether your browser can reach Supabase. It does not test your password or database table.</p>
+    <p id="project"></p>
+    <p id="status" role="status">Checking…</p>
+    <pre id="details" aria-live="polite"></pre>
+    <button type="button" id="retry">Run again</button>
+    <p><a href="./">Return to Prompt Vault</a></p>
+  </main>
+  <script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const cfg = window.PROMPT_VAULT_CONFIG;
+    const status = document.getElementById('status');
+    const details = document.getElementById('details');
+    const project = document.getElementById('project');
+    const valid = cfg && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.supabaseUrl || '')
+      && /^(sb_publishable_|eyJ)/.test(cfg.supabasePublishableKey || '');
+    project.textContent = 'Project: ' + (cfg?.supabaseUrl || '(not configured)');
+    async function check() {
+      if (!valid) {
+        status.textContent = 'Configuration is missing or invalid.';
+        details.textContent = 'Open config.js and enter your Supabase Project URL and public publishable key.';
+        return;
+      }
+      status.textContent = 'Checking Supabase connectivity…';
+      details.textContent = 'Request: GET /auth/v1/health';
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        const response = await fetch(cfg.supabaseUrl.replace(/\/$/, '') + '/auth/v1/health', {
+          method: 'GET', headers: { 'apikey': cfg.supabasePublishableKey },
+          cache: 'no-store', signal: controller.signal
+        });
+        let body = '';
+        try { body = (await response.text()).slice(0, 500); } catch (_) {}
+        if (response.ok) {
+          status.textContent = 'Supabase Auth is reachable.';
+          details.textContent = `HTTP ${response.status}. Network access is working. If sign-in fails, check account details and inspect your browser Network tab.
+${body}`;
+        } else {
+          status.textContent = `Supabase responded with HTTP ${response.status}.`;
+          details.textContent = `The server was reached, but the request was rejected. Check that the key belongs to this project and that the project is Active.
+${body}`;
+        }
+      } catch (error) {
+        status.textContent = 'Browser could not connect to Supabase.';
+        details.textContent = `${error.name}: ${error.message}
+Check your project URL, ensure the Supabase project is Active, and try an incognito window with VPN/extensions disabled. Look at the browser Network tab for DNS or CORS errors.`;
+      } finally { clearTimeout(timeout); }
+    }
+    document.getElementById('retry').addEventListener('click', check);
+    check();
+  });
+  </script>
+</body>
+</html>
