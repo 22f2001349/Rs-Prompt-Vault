@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f8fc" />
+    <meta name="description" content="A private home for the prompts you want to use again." />
+    <title>Prompt Vault | Your ideas, ready to use.</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="config.js" defer></script>
+    <script src="utils.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div id="startup" class="startup" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Opening your vault…</p>
+    </div>
+
+    <main id="login-screen" class="login-screen" hidden>
+      <div class="login-brand"><span class="brand-mark" aria-hidden="true">✦</span> Prompt Vault</div>
+      <section class="login-panel" aria-labelledby="login-heading">
+        <div class="login-icon" aria-hidden="true">✦</div>
+        <p class="eyebrow">YOUR PRIVATE WORKSPACE</p>
+        <h1 id="login-heading">Welcome back.</h1>
+        <p class="supporting">Your best prompts, safely stored and always ready when inspiration strikes.</p>
+        <form id="login-form" novalidate>
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="username" inputmode="email" placeholder="you@example.com" required />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+          <p id="login-error" class="form-error" role="alert" hidden></p>
+          <button id="login-submit" class="button button-primary login-submit" type="submit">Sign in to your vault</button>
+        </form>
+        <p class="login-footnote">Private by design. No public registration.</p>
+      </section>
+      <p class="login-bottom">Built for thoughts worth keeping.</p>
+    </main>
+
+    <div id="dashboard" class="dashboard" hidden>
+      <header class="topbar">
+        <div class="topbar-inner">
+          <a class="brand" href="./" aria-label="Prompt Vault home"><span class="brand-mark" aria-hidden="true">✦</span><span>Prompt Vault</span></a>
+          <div class="account-area">
+            <span id="account-email" class="account-email"></span>
+            <button id="logout-button" type="button" class="button button-outline button-small">Log out</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="page">
+        <section class="hero" aria-labelledby="hero-heading">
+          <div class="hero-copy">
+            <p class="eyebrow hero-eyebrow"><span class="eyebrow-dot"></span> YOUR PERSONAL LIBRARY</p>
+            <h1 id="hero-heading">Good prompts deserve<br /><em>a permanent home.</em></h1>
+            <p>Keep your most useful instructions in one place. Find any idea, then copy the full prompt in one click.</p>
+          </div>
+          <div class="hero-decoration" aria-hidden="true"><div class="hero-orbit orbit-1"></div><div class="hero-orbit orbit-2"></div><div class="hero-star">✦</div></div>
+        </section>
+
+        <section class="library" aria-labelledby="library-heading">
+          <div class="library-title-row">
+            <div>
+              <p class="eyebrow muted-eyebrow">YOUR COLLECTION</p>
+              <h2 id="library-heading">All prompts <span id="prompt-count" class="count-bubble">0</span></h2>
+            </div>
+            <button type="button" id="add-button" class="button button-primary"><span class="add-plus" aria-hidden="true">+</span> Add prompt</button>
+          </div>
+          <div class="toolbar">
+            <label class="search-field" for="search-input"><span class="search-icon" aria-hidden="true">⌕</span><input id="search-input" type="search" autocomplete="off" placeholder="Search titles and complete prompts…" aria-label="Search prompts" /><span class="search-shortcut" aria-hidden="true">⌘ K</span></label>
+            <span id="result-count" class="result-count" aria-live="polite"></span>
+          </div>
+          <div id="list-error" class="list-error" role="alert" hidden><p id="list-error-message">Unable to load prompts.</p><button id="retry-button" type="button" class="button button-outline button-small">Try again</button></div>
+          <div id="list-loading" class="list-loading" role="status" hidden><div class="spinner" aria-hidden="true"></div> Loading saved prompts…</div>
+          <div id="prompt-list" class="prompt-list"></div>
+          <div id="empty-state" class="empty-state" hidden><div class="empty-icon" aria-hidden="true">✦</div><h3 id="empty-heading">Your vault is ready.</h3><p id="empty-description">Add your first prompt to start building a library you can rely on.</p><button id="empty-add-button" type="button" class="button button-secondary">+ Create a prompt</button></div>
+        </section>
+        <footer class="footer"><span>Prompt Vault</span><span>Your words stay yours.</span></footer>
+      </main>
+    </div>
+
+    <dialog id="editor-dialog" class="modal" aria-labelledby="editor-heading">
+      <div class="modal-heading-row"><div><p class="eyebrow muted-eyebrow">PROMPT EDITOR</p><h2 id="editor-heading">New prompt</h2></div><button id="editor-close" type="button" class="icon-button" aria-label="Close editor">×</button></div>
+      <form id="editor-form" novalidate>
+        <label for="prompt-title">Title <span class="required">*</span></label>
+        <input id="prompt-title" type="text" maxlength="160" placeholder="e.g. Master Quantitative Aptitude" required />
+        <div class="label-row"><label for="prompt-content">Complete prompt <span class="required">*</span></label><span id="character-count" class="character-count">0 characters</span></div>
+        <textarea id="prompt-content" rows="13" spellcheck="true" placeholder="Paste your complete prompt here. Line breaks, paragraphs, and long instructions will be preserved." required></textarea>
+        <p id="editor-error" class="form-error" role="alert" hidden></p>
+        <div class="modal-actions"><button id="editor-cancel" type="button" class="button button-outline">Cancel</button><button id="editor-save" type="submit" class="button button-primary">Save prompt</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="detail-dialog" class="modal modal-wide" aria-labelledby="detail-title">
+      <div class="modal-heading-row"><div class="detail-title-wrap"><p class="eyebrow muted-eyebrow">SAVED PROMPT</p><h2 id="detail-title"></h2><p id="detail-meta" class="detail-meta"></p></div><button id="detail-close" type="button" class="icon-button" aria-label="Close prompt">×</button></div>
+      <div id="detail-content" class="detail-content" tabindex="0"></div>
+      <div class="modal-actions"><button id="detail-edit" type="button" class="button button-outline">Edit prompt</button><button id="detail-copy" type="button" class="button button-primary">Copy complete prompt</button></div>
+    </dialog>
+
+    <dialog id="delete-dialog" class="modal modal-narrow" aria-labelledby="delete-heading">
+      <div class="delete-icon" aria-hidden="true">!</div>
+      <h2 id="delete-heading">Delete this prompt?</h2>
+      <p class="supporting">“<span id="delete-name"></span>” will be permanently removed from your vault. This action cannot be undone.</p>
+      <p id="delete-error" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions"><button id="delete-cancel" type="button" class="button button-outline">Keep prompt</button><button id="delete-confirm" type="button" class="button button-danger">Delete permanently</button></div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>
