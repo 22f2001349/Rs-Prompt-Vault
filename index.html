@@ -7,11 +7,11 @@
     <meta name="description" content="A private home for the prompts you want to use again." />
     <title>Prompt Vault | Your ideas, ready to use.</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css" />
-    <script src="config.js" defer></script>
-    <script src="utils.js" defer></script>
+    <link rel="stylesheet" href="styles.css?v=20261113-backup1" />
+    <script src="config.js?v=20261113-2" defer></script>
+    <script src="utils.js?v=20261113-backup1" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <script src="app.js" defer></script>
+    <script src="app.js?v=20261113-backup1" defer></script>
   </head>
   <body>
     <div id="startup" class="startup" role="status" aria-live="polite">
@@ -68,6 +68,18 @@
             </div>
             <button type="button" id="add-button" class="button button-primary"><span class="add-plus" aria-hidden="true">+</span> Add prompt</button>
           </div>
+          <div class="backup-tools" role="group" aria-label="Backup and restore prompts">
+            <div class="backup-tools-copy">
+              <strong>Protect your prompts</strong>
+              <span>Download a personal copy, or restore prompts from an earlier backup.</span>
+            </div>
+            <div class="backup-actions">
+              <button id="backup-download" type="button" class="button button-outline">↓ Download backup</button>
+              <button id="backup-restore" type="button" class="button button-outline">↥ Restore backup</button>
+              <input id="backup-file" type="file" accept=".json,application/json" hidden aria-label="Select Prompt Vault backup JSON file" />
+            </div>
+          </div>
+          <p id="backup-status" class="backup-status" role="status" aria-live="polite" hidden></p>
           <div class="toolbar">
             <label class="search-field" for="search-input"><span class="search-icon" aria-hidden="true">⌕</span><input id="search-input" type="search" autocomplete="off" placeholder="Search titles and complete prompts…" aria-label="Search prompts" /><span class="search-shortcut" aria-hidden="true">⌘ K</span></label>
             <span id="result-count" class="result-count" aria-live="polite"></span>

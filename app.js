@@ -15,6 +15,8 @@
     empty: $('empty-state'), emptyHeading: $('empty-heading'),
     emptyDescription: $('empty-description'), emptyAddButton: $('empty-add-button'),
     addButton: $('add-button'), retryButton: $('retry-button'),
+    backupDownload: $('backup-download'), backupRestore: $('backup-restore'),
+    backupFile: $('backup-file'), backupStatus: $('backup-status'),
     editorDialog: $('editor-dialog'), editorForm: $('editor-form'),
     editorHeading: $('editor-heading'), title: $('prompt-title'),
     content: $('prompt-content'), characterCount: $('character-count'),
@@ -33,7 +35,7 @@
     listError: null, fetchSequence: 0,
     editingId: null, editorInitial: null, saving: false,
     detailId: null, deletingId: null, deleting: false,
-    toastTimer: null
+    toastTimer: null, backupBusy: false
   };
 
   function make(tag, className, text) {
@@ -58,7 +60,7 @@
       : (error && typeof error.message === 'string' ? error.message : '');
     // Avoid dumping detailed connection internals to the user unnecessarily.
     if (/failed to fetch|networkerror|load failed/i.test(message)) {
-      return 'Connection failed. Check your internet connection and try again.';
+      return 'Could not reach Supabase. Confirm that the project is Active and the Project URL is correct. If it still fails, open check-connection.html to diagnose the network request.';
     }
     return message || fallback;
   }
@@ -69,6 +71,134 @@
     view.toast.classList.toggle('toast-error', isError);
     view.toast.hidden = false;
     state.toastTimer = window.setTimeout(() => { view.toast.hidden = true; }, 3500);
+  }
+
+  function backupMessage(message, isError = false) {
+    view.backupStatus.textContent = message;
+    view.backupStatus.hidden = !message;
+    view.backupStatus.classList.toggle('is-error', isError);
+  }
+
+  function setBackupBusy(value) {
+    state.backupBusy = value;
+    view.backupDownload.disabled = value;
+    view.backupRestore.disabled = value;
+    view.backupDownload.textContent = value ? 'Working…' : '↓ Download backup';
+    view.backupRestore.textContent = value ? 'Working…' : '↥ Restore backup';
+  }
+
+  async function fetchAllForBackup(userId) {
+    const all = [];
+    const pageSize = 500; // Supabase often caps rows returned per query.
+    for (let offset = 0; ; offset += pageSize) {
+      if (state.userId !== userId) throw new Error('You signed out while preparing the backup.');
+      const { data, error, count } = await state.client.from('prompts')
+        .select('id,user_id,title,content,created_at,updated_at', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      if (state.userId !== userId) throw new Error('Your login changed during the operation.');
+      if (!Array.isArray(data)) throw new Error('Supabase returned an unexpected result.');
+      if (!Number.isSafeInteger(count) || count < 0) throw new Error('Unable to confirm the number of prompts in the database.');
+      all.push(...data);
+      if (all.length >= count) break;
+      if (data.length < pageSize) throw new Error('Supabase returned an incomplete page. Backup stopped to avoid losing prompts.');
+    }
+    return all;
+  }
+
+  async function downloadBackup() {
+    if (!state.userId || state.backupBusy) return;
+    const userId = state.userId;
+    setBackupBusy(true);
+    backupMessage('Fetching your complete prompt collection from Supabase…');
+    try {
+      const rows = await fetchAllForBackup(userId); // Fresh DB query, not cached card previews.
+      if (state.userId !== userId) throw new Error('Your login changed during the operation.');
+      const backup = utils.makeBackup(rows);
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `prompt-vault-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.append(anchor);
+      try { anchor.click(); } finally {
+        anchor.remove();
+        // Delay revoke so mobile download managers can acquire the blob.
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+      const count = rows.length;
+      const message = `Backup download requested: ${count} ${count === 1 ? 'prompt' : 'prompts'}. Check your Downloads folder.`;
+      backupMessage(message);
+      toast('Backup download started.');
+    } catch (error) {
+      const message = readableError(error, 'Unable to export prompts.');
+      backupMessage(message, true);
+      toast(message, true);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function restoreBackup(file) {
+    if (!file || !state.userId || state.backupBusy) return;
+    if (file.size > 50 * 1024 * 1024) {
+      backupMessage('Backup is larger than 50 MB. Please split it into smaller backups.', true);
+      return;
+    }
+    const userId = state.userId;
+    setBackupBusy(true);
+    backupMessage('Checking backup file…');
+    let restored = 0;
+    let skipped = 0;
+    try {
+      const records = utils.readBackup(await file.text());
+      if (state.userId !== userId) throw new Error('Your login changed during the operation.');
+      if (!records.length) {
+        backupMessage('The backup is valid but contains no prompts.');
+        return;
+      }
+      if (!window.confirm(`Restore ${records.length} prompts from this backup?\n\nExisting prompts with the same IDs will be skipped, never overwritten. New prompts will be added to the signed-in account.`)) {
+        backupMessage('Restore cancelled. Your prompts were not changed.');
+        return;
+      }
+      backupMessage('Checking existing prompts…');
+      const existing = await fetchAllForBackup(userId);
+      const existingIds = new Set(existing.map((row) => row.id.toLowerCase()));
+      const missing = records.filter((row) => !existingIds.has(row.id));
+      skipped = records.length - missing.length;
+      for (let i = 0; i < missing.length; i += 50) {
+        if (state.userId !== userId) throw new Error('Your login changed during restoration.');
+        backupMessage(`Restoring prompts… ${restored} of ${missing.length} added.`);
+        const batch = missing.slice(i, i + 50).map((row) => ({ ...row, user_id: userId }));
+        const { data, error } = await state.client.from('prompts').insert(batch).select('id');
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length !== batch.length) {
+          throw new Error('Supabase did not confirm the complete restoration batch.');
+        }
+        restored += data.length;
+      }
+      if (state.userId === userId) {
+        backupMessage(`Restore finished: ${restored} added, ${skipped} already present. Nothing was overwritten.`);
+        toast(restored ? `${restored} prompts restored.` : 'All backup prompts are already in your vault.');
+        state.fetchSequence += 1; // Ignore any pre-restore database fetch.
+        state.listBusy = false;
+        await loadPrompts();
+      }
+    } catch (error) {
+      const message = `${readableError(error, 'Restore failed.')} ${restored ? `${restored} prompts were imported before the failure. Re-import the file to resume.` : 'No restoration success was confirmed.'}`;
+      backupMessage(message, true);
+      toast(message, true);
+      if (state.userId === userId && restored) {
+        state.fetchSequence += 1;
+        state.listBusy = false;
+        await loadPrompts();
+      }
+    } finally {
+      setBackupBusy(false);
+    }
   }
 
   function showConfigurationFailure(message) {
@@ -110,6 +240,7 @@
     state.listBusy = false;
     state.listError = null;
     closeAllDialogs();
+    backupMessage('');
     view.startup.hidden = true;
     view.login.hidden = Boolean(nextId);
     view.dashboard.hidden = !nextId;
@@ -446,6 +577,15 @@
     view.emptyAddButton.addEventListener('click', () => openEditor());
     view.search.addEventListener('input', renderList);
     view.retryButton.addEventListener('click', () => { void loadPrompts(); });
+    view.backupDownload.addEventListener('click', () => { void downloadBackup(); });
+    view.backupRestore.addEventListener('click', () => {
+      if (!state.backupBusy && state.userId) view.backupFile.click();
+    });
+    view.backupFile.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = ''; // Allow re-selecting the same backup after an error.
+      if (file) void restoreBackup(file);
+    });
 
     view.editorForm.addEventListener('submit', (event) => { void savePrompt(event); });
     view.editorCancel.addEventListener('click', closeEditorWithConfirmation);

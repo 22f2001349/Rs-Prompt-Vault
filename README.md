@@ -41,3 +41,38 @@ node --check utils.js
 - Prompt titles and text are rendered using `textContent`, not `innerHTML`, preventing prompt text from injecting HTML or scripts.
 - Clipboard copying requires HTTPS or localhost and browser permission. The UI reports success only after `navigator.clipboard.writeText` resolves.
 - Dependence on a CDN means the user needs network access to load the Supabase browser SDK.
+
+## Supabase configuration already included
+
+This ZIP includes the project URL and **public** publishable key you supplied.
+If you have already published an older version on GitHub Pages, replace the files
+from this ZIP in your existing repository and commit them. GitHub Pages may take
+a short time to publish the new version. Open `config.js` on your live website
+to verify that it contains the correct Project URL (never expose a secret key).
+
+## Troubleshooting the "Connection failed" message
+
+Open `https://YOUR-USERNAME.github.io/YOUR-REPO/check-connection.html`
+(replace username and repository name) to run a simple network check.
+A successful check confirms the browser can contact the Supabase Auth health
+endpoint; it does **not** verify email/password login, table policies, or SQL setup.
+If the check fails, verify the project's Active status in Supabase, the Project URL,
+and try a private/incognito window without extensions or VPN. Browser DevTools
+Network tab gives more precise DNS/CORS errors.
+
+Changing `config.js` does **not** configure Supabase for you: run `supabase/schema.sql`
+and create your authorized user manually in the dashboard.
+
+## Backup & Restore (no extra SQL required)
+
+Once signed in, select **Download backup** to request a full JSON backup of all prompts owned by the active account. The export queries Supabase directly, paginates through all rows, includes each title and **complete original prompt body**, and preserves its timestamps. It does not export login sessions or keys. A filename such as `prompt-vault-backup-2026-11-13.json` is offered to your browser's Downloads manager. Check that the file actually appears in Downloads.
+
+Choose **Restore backup** to select a valid Prompt Vault v1 JSON file. The app validates the file before writing anything, asks for confirmation, and **skips existing records with the same ID**. New records are assigned to whichever account is currently signed in. It never overwrites or deletes existing prompts. For a partial import failure, import the same file again to continue. Restore uses the same `prompts` table and existing RLS policies.
+
+**Keep backup files private.** JSON backups contain your actual prompt text in readable form. Do not commit them to a public GitHub repository or share them. Save a copy outside your device (ideally an encrypted drive). Supabase is still the source of truth until a restore is completed.
+
+No changes to `supabase/schema.sql`, authentication settings, or Supabase keys are needed.
+
+## Updating an already working GitHub Pages installation
+
+Replace only `index.html`, `app.js`, `utils.js`, and `styles.css` in the **root of your existing repository**, then commit. Your existing `config.js`, `supabase/schema.sql`, saved records, and login credentials do not change. Reload the GitHub Pages site to see the new backup controls.
